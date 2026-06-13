@@ -1,0 +1,24 @@
+{
+  "name": "sentoria-tickets",
+  "version": "1.0.0",
+  "description": "Premium Discord Ticket Bot - Sentoria Tickets",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "discord",
+    "ticket",
+    "bot",
+    "sentoria"
+  ],
+  "author": "Sentoria",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "mongoose": "^8.1.1",
+    "dotenv": "^16.4.1",
+    "moment": "^2.30.1"
+  }
+}

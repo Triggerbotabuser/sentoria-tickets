@@ -1,10 +1,17 @@
 const { Client, GatewayIntentBits, Collection, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ChannelType } = require('discord.js');
 const mongoose = require('mongoose');
+const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const config = require('./config');
 const Ticket = require('./models/Ticket');
 const TicketManager = require('./utils/ticketManager');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => res.send('Sentoria Tickets is online!'));
+app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
 
 const client = new Client({
     intents: [

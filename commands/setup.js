@@ -43,7 +43,7 @@ module.exports = {
                 .addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(`# 🎫 إنشاء تذكرة`)
                 );
-            titleSection.setAccessory(
+            titleSection.setThumbnailAccessory(
                 new ThumbnailBuilder().setURL(guild.iconURL({ dynamic: true, size: 256 }))
             );
             components.push(titleSection);

@@ -1,6 +1,10 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const {
+    SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
+    ContainerBuilder, TextDisplayBuilder
+} = require('discord.js');
 const config = require('../config');
 const TicketManager = require('../utils/ticketManager');
+const Ticket = require('../models/Ticket');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -10,58 +14,35 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            const { guild, channel, member } = interaction;
+            const { guild, channel } = interaction;
 
-            // Check if this is a ticket channel
-            const ticket = await require('../models/Ticket').findOne({
-                channelId: channel.id,
-                guildId: guild.id,
-            });
-
+            const ticket = await Ticket.findOne({ channelId: channel.id, guildId: guild.id });
             if (!ticket) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription('هذا ليس قناة تذكرة.')
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nهذا ليس قناة تذكرة.')];
                 return interaction.reply({
-                    embeds: [errorEmbed],
-                    ephemeral: true,
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
                 });
             }
 
-            // Defer reply
             await interaction.deferReply({ ephemeral: true });
-
-            // Generate transcript
             const transcript = await TicketManager.generateTranscript(channel, ticket);
 
             if (!transcript) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription('حدث خطأ أثناء إنشاء النسخة.')
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nحدث خطأ أثناء إنشاء النسخة.')];
                 return interaction.editReply({
-                    embeds: [errorEmbed],
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2,
                 });
             }
 
-            // Update ticket with transcript
             ticket.transcript = transcript;
             await ticket.save();
 
-            // Send transcript
-            const successEmbed = new EmbedBuilder()
-                .setColor(config.colors.success)
-                .setTitle('✅ تم إنشاء النسخة')
-                .setDescription('تم إنشاء نسخة من التذكرة بنجاح.')
-                .setTimestamp();
-
+            const components = [new TextDisplayBuilder().setContent('## ✅ تم إنشاء النسخة\nملف النسخة جاهز.')];
             await interaction.editReply({
-                embeds: [successEmbed],
+                components: [new ContainerBuilder().setAccentColor(config.colors.success).addComponents(...components)],
+                flags: MessageFlags.IsComponentsV2,
                 files: [{
                     attachment: Buffer.from(transcript, 'utf-8'),
                     name: `transcript-${TicketManager.formatTicketNumber(ticket.ticketId)}.html`,
@@ -69,16 +50,11 @@ module.exports = {
             });
 
         } catch (error) {
-            console.error('Transcript command error:', error);
-
-            const errorEmbed = new EmbedBuilder()
-                .setColor(config.colors.danger)
-                .setTitle('❌ خطأ')
-                .setDescription('حدث خطأ أثناء إنشاء النسخة.')
-                .setTimestamp();
-
+            console.error('Transcript error:', error);
+            const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nحدث خطأ أثناء إنشاء النسخة.')];
             await interaction.editReply({
-                embeds: [errorEmbed],
+                components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                flags: MessageFlags.IsComponentsV2,
             });
         }
     },

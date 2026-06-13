@@ -1,101 +1,67 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const {
+    SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
+    ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorStyle
+} = require('discord.js');
 const config = require('../config');
 const TicketManager = require('../utils/ticketManager');
+const Ticket = require('../models/Ticket');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('close')
         .setDescription('إغلاق التذكرة الحالية')
         .addStringOption(option =>
-            option
-                .setName('reason')
-                .setDescription('سبب الإغلاق')
-                .setRequired(false)
+            option.setName('reason').setDescription('سبب الإغلاق').setRequired(false)
         ),
 
     async execute(interaction) {
         try {
             const { guild, channel, member } = interaction;
 
-            // Check if this is a ticket channel
-            const ticket = await require('../models/Ticket').findOne({
-                channelId: channel.id,
-                guildId: guild.id,
-                status: 'open',
-            });
-
+            const ticket = await Ticket.findOne({ channelId: channel.id, guildId: guild.id, status: 'open' });
             if (!ticket) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription('هذا ليس قناة تذكرة مفتوحة.')
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nهذا ليس قناة تذكرة مفتوحة.')];
                 return interaction.reply({
-                    embeds: [errorEmbed],
-                    ephemeral: true,
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
                 });
             }
 
-            // Check permissions
-            const isStaff = member.permissions.has(PermissionFlagsBits.Administrator) ||
-                (config.roles.staff && member.roles.cache.has(config.roles.staff)) ||
-                ticket.creatorId === member.id;
-
+            const isStaff = member.permissions.has(PermissionFlagsBits.Administrator) || ticket.creatorId === member.id;
             if (!isStaff) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription('ليس لديك صلاحية لإغلاق هذه التذكرة.')
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent('## ❌ رفض\nليس لديك صلاحية لإغلاق هذه التذكرة.')];
                 return interaction.reply({
-                    embeds: [errorEmbed],
-                    ephemeral: true,
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
                 });
             }
 
-            // Defer reply
             await interaction.deferReply();
-
             const reason = interaction.options.getString('reason') || 'لا يوجد سبب';
-
-            // Close ticket
             const result = await TicketManager.closeTicket(guild, channel.id, member.id, reason);
 
             if (!result.success) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription(result.error)
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent(`## ❌ خطأ\n${result.error}`)];
                 return interaction.editReply({
-                    embeds: [errorEmbed],
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2,
                 });
             }
 
-            const successEmbed = new EmbedBuilder()
-                .setColor(config.colors.success)
-                .setTitle('✅ تم إغلاق التذكرة')
-                .setDescription(`تم إغلاق التذكرة بواسطة ${member}.\nسيتم حذف القناة خلال 10 ثوانٍ.`)
-                .setTimestamp();
-
+            const components = [
+                new TextDisplayBuilder().setContent('## 🔒 تم إغلاق التذكرة\nتم الإغلاق بواسطة ' + member + '.\nسيتم حذف القناة خلال 10 ثوانٍ.'),
+            ];
             await interaction.editReply({
-                embeds: [successEmbed],
+                components: [new ContainerBuilder().setAccentColor(config.colors.success).addComponents(...components)],
+                flags: MessageFlags.IsComponentsV2,
             });
 
         } catch (error) {
-            console.error('Close command error:', error);
-
-            const errorEmbed = new EmbedBuilder()
-                .setColor(config.colors.danger)
-                .setTitle('❌ خطأ')
-                .setDescription('حدث خطأ أثناء إغلاق التذكرة.')
-                .setTimestamp();
-
+            console.error('Close error:', error);
+            const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nحدث خطأ أثناء إغلاق التذكرة.')];
             await interaction.editReply({
-                embeds: [errorEmbed],
+                components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                flags: MessageFlags.IsComponentsV2,
             });
         }
     },

@@ -1,128 +1,82 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const {
+    SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
+    ContainerBuilder, TextDisplayBuilder
+} = require('discord.js');
 const config = require('../config');
 const TicketManager = require('../utils/ticketManager');
+const Ticket = require('../models/Ticket');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('remove')
         .setDescription('إزالة عضو من التذكرة')
         .addUserOption(option =>
-            option
-                .setName('user')
-                .setDescription('العضو المطلوب إزالته')
-                .setRequired(true)
+            option.setName('user').setDescription('العضو المطلوب إزالته').setRequired(true)
         ),
 
     async execute(interaction) {
         try {
             const { guild, channel, member } = interaction;
 
-            // Check if this is a ticket channel
-            const ticket = await require('../models/Ticket').findOne({
-                channelId: channel.id,
-                guildId: guild.id,
-                status: 'open',
-            });
-
+            const ticket = await Ticket.findOne({ channelId: channel.id, guildId: guild.id, status: 'open' });
             if (!ticket) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription('هذا ليس قناة تذكرة مفتوحة.')
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nهذا ليس قناة تذكرة مفتوحة.')];
                 return interaction.reply({
-                    embeds: [errorEmbed],
-                    ephemeral: true,
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
                 });
             }
 
-            // Check permissions
-            const isStaff = member.permissions.has(PermissionFlagsBits.Administrator) ||
-                (config.roles.staff && member.roles.cache.has(config.roles.staff));
-
+            const isStaff = member.permissions.has(PermissionFlagsBits.Administrator);
             if (!isStaff) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription('ليس لديك صلاحية لإزالة أعضاء من هذه التذكرة.')
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent('## ❌ رفض\nليس لديك صلاحية لإزالة أعضاء.')];
                 return interaction.reply({
-                    embeds: [errorEmbed],
-                    ephemeral: true,
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
                 });
             }
 
             const targetUser = interaction.options.getUser('user');
-            const targetMember = await guild.members.fetch(targetUser.id);
-
-            if (!targetMember) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription('العضو غير موجود في السيرفر.')
-                    .setTimestamp();
-
-                return interaction.reply({
-                    embeds: [errorEmbed],
-                    ephemeral: true,
-                });
-            }
-
-            // Cannot remove the ticket creator
             if (targetUser.id === ticket.creatorId) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription('لا يمكن إزالة منشئ التذكرة.')
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nلا يمكن إزالة منشئ التذكرة.')];
                 return interaction.reply({
-                    embeds: [errorEmbed],
-                    ephemeral: true,
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
                 });
             }
 
-            // Defer reply
-            await interaction.deferReply({ ephemeral: true });
+            const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+            if (!targetMember) {
+                const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nالعضو غير موجود في السيرفر.')];
+                return interaction.reply({
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+                });
+            }
 
-            // Remove member
+            await interaction.deferReply({ ephemeral: true });
             const result = await TicketManager.removeMember(guild, channel.id, targetMember, member);
 
             if (!result.success) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription(result.error)
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent(`## ❌ خطأ\n${result.error}`)];
                 return interaction.editReply({
-                    embeds: [errorEmbed],
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2,
                 });
             }
 
-            const successEmbed = new EmbedBuilder()
-                .setColor(config.colors.success)
-                .setTitle('✅ تم إزالة العضو')
-                .setDescription(`تم إزالة ${targetMember.user.tag} من التذكرة.`)
-                .setTimestamp();
-
+            const components = [new TextDisplayBuilder().setContent(`## ✅ تم الإزالة\nتم إزالة ${targetMember.user.tag} من التذكرة.`)];
             await interaction.editReply({
-                embeds: [successEmbed],
+                components: [new ContainerBuilder().setAccentColor(config.colors.success).addComponents(...components)],
+                flags: MessageFlags.IsComponentsV2,
             });
 
         } catch (error) {
-            console.error('Remove command error:', error);
-
-            const errorEmbed = new EmbedBuilder()
-                .setColor(config.colors.danger)
-                .setTitle('❌ خطأ')
-                .setDescription('حدث خطأ أثناء إزالة العضو.')
-                .setTimestamp();
-
+            console.error('Remove error:', error);
+            const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nحدث خطأ أثناء إزالة العضو.')];
             await interaction.editReply({
-                embeds: [errorEmbed],
+                components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                flags: MessageFlags.IsComponentsV2,
             });
         }
     },

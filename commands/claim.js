@@ -1,6 +1,10 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const {
+    SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
+    ContainerBuilder, TextDisplayBuilder
+} = require('discord.js');
 const config = require('../config');
 const TicketManager = require('../utils/ticketManager');
+const Ticket = require('../models/Ticket');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -12,82 +16,47 @@ module.exports = {
         try {
             const { guild, channel, member } = interaction;
 
-            // Check if this is a ticket channel
-            const ticket = await require('../models/Ticket').findOne({
-                channelId: channel.id,
-                guildId: guild.id,
-                status: 'open',
-            });
-
+            const ticket = await Ticket.findOne({ channelId: channel.id, guildId: guild.id, status: 'open' });
             if (!ticket) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription('هذا ليس قناة تذكرة مفتوحة.')
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nهذا ليس قناة تذكرة مفتوحة.')];
                 return interaction.reply({
-                    embeds: [errorEmbed],
-                    ephemeral: true,
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
                 });
             }
 
-            // Check permissions
-            const isStaff = member.permissions.has(PermissionFlagsBits.Administrator) ||
-                (config.roles.staff && member.roles.cache.has(config.roles.staff));
-
+            const isStaff = member.permissions.has(PermissionFlagsBits.Administrator);
             if (!isStaff) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription('ليس لديك صلاحية لاستلام هذه التذكرة.')
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent('## ❌ رفض\nليس لديك صلاحية لاستلام التذكرة.')];
                 return interaction.reply({
-                    embeds: [errorEmbed],
-                    ephemeral: true,
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
                 });
             }
 
-            // Defer reply
             await interaction.deferReply({ ephemeral: true });
-
-            // Claim ticket
             const result = await TicketManager.claimTicket(guild, channel.id, member.id);
 
             if (!result.success) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(config.colors.danger)
-                    .setTitle('❌ خطأ')
-                    .setDescription(result.error)
-                    .setTimestamp();
-
+                const components = [new TextDisplayBuilder().setContent(`## ❌ خطأ\n${result.error}`)];
                 return interaction.editReply({
-                    embeds: [errorEmbed],
+                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                    flags: MessageFlags.IsComponentsV2,
                 });
             }
 
-            const successEmbed = new EmbedBuilder()
-                .setColor(config.colors.success)
-                .setTitle('✅ تم استلام التذكرة')
-                .setDescription(`تم استلام التذكرة بواسطة ${member}.\nأنت الآن مسؤول عن هذه التذكرة.`)
-                .setTimestamp();
-
+            const components = [new TextDisplayBuilder().setContent(`## ✅ تم الاستلام\nتم استلام التذكرة بواسطة ${member}.\nأنت الآن مسؤول عن هذه التذكرة.`)];
             await interaction.editReply({
-                embeds: [successEmbed],
+                components: [new ContainerBuilder().setAccentColor(config.colors.success).addComponents(...components)],
+                flags: MessageFlags.IsComponentsV2,
             });
 
         } catch (error) {
-            console.error('Claim command error:', error);
-
-            const errorEmbed = new EmbedBuilder()
-                .setColor(config.colors.danger)
-                .setTitle('❌ خطأ')
-                .setDescription('حدث خطأ أثناء استلام التذكرة.')
-                .setTimestamp();
-
+            console.error('Claim error:', error);
+            const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nحدث خطأ أثناء استلام التذكرة.')];
             await interaction.editReply({
-                embeds: [errorEmbed],
+                components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
+                flags: MessageFlags.IsComponentsV2,
             });
         }
     },

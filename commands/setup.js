@@ -142,11 +142,12 @@ module.exports = {
 
         } catch (error) {
             console.error('Setup command error:', error);
+            console.error('Error stack:', error.stack);
 
             const errorEmbed = new EmbedBuilder()
                 .setColor(config.colors.danger)
                 .setTitle('❌ خطأ')
-                .setDescription('حدث خطأ أثناء إعداد لوحة التذاكر.')
+                .setDescription(`حدث خطأ أثناء إعداد لوحة التذاكر.\n\`\`\`${error.message}\`\`\``)
                 .setTimestamp();
 
             await interaction.editReply({

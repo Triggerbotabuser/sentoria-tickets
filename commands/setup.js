@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, MediaGalleryBuilder, SectionBuilder, ThumbnailBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SeparatorStyle, PermissionFlagsBits } = require('discord.js');
 const config = require('../config');
 const TicketManager = require('../utils/ticketManager');
 
@@ -12,57 +12,79 @@ module.exports = {
         try {
             const { guild, channel } = interaction;
 
-            // Defer reply
             await interaction.deferReply({ ephemeral: true });
 
-            // Get or create settings
             const settings = await TicketManager.getSettings(guild.id);
-
-            // Update settings with current channel
             settings.ticketPanelChannelId = channel.id;
             await settings.save();
 
-            // Create the main ticket panel embed
-            const panelEmbed = new EmbedBuilder()
-                .setColor(config.colors.primary)
-                .setAuthor({
-                    name: 'Sentoria Tickets',
-                    iconURL: guild.iconURL({ dynamic: true, size: 256 }),
-                })
-                .setTitle('🎫 إنشاء تذكرة')
-                .setDescription(
-                    'مرحباً بك في الدعم الفني الخاص بـ **Sentoria**.\n' +
-                    'يرجى اختيار القسم المناسب من الأسفل للحصول على أفضل خدمة ممكنة.\n\n' +
-                    '─────────────────────────────\n\n' +
-                    '**🔧 الدعم الفني**\n' +
-                    'للمشاكل التقنية والأعطال\n\n' +
-                    '**👮 تقديم بلاغ**\n' +
-                    'للإبلاغ عن لاعب أو مشكلة\n\n' +
-                    '**📋 تقديم للإدارة**\n' +
-                    'التواصل المباشر مع الإدارة\n\n' +
-                    '**🤝 الشراكات**\n' +
-                    'طلبات الشراكات والتعاون\n\n' +
-                    '**❓ الدعم العام**\n' +
-                    'الأسئلة والاستفسارات العامة\n\n' +
-                    '─────────────────────────────'
-                )
-                .setFooter({
-                    text: `${config.botName} • ${config.botTagline}`,
-                    iconURL: guild.iconURL({ dynamic: true }),
-                })
-                .setTimestamp();
+            const hasBanner = (() => {
+                try {
+                    const bannerPath = require('path').join(__dirname, '..', 'assets', 'tickets-banner.png');
+                    return require('fs').existsSync(bannerPath);
+                } catch { return false; }
+            })();
 
-            // Try to set banner if available
-            try {
-                const bannerPath = require('path').join(__dirname, '..', 'assets', 'tickets-banner.png');
-                if (require('fs').existsSync(bannerPath)) {
-                    panelEmbed.setImage('attachment://tickets-banner.png');
-                }
-            } catch (e) {
-                // Continue without banner
+            const bannerPath = require('path').join(__dirname, '..', 'assets', 'tickets-banner.png');
+
+            const components = [];
+
+            // Banner image
+            if (hasBanner) {
+                components.push(
+                    new MediaGalleryBuilder().addItems({
+                        media: { url: 'attachment://tickets-banner.png' },
+                    })
+                );
             }
 
-            // Create buttons row 1
+            // Main title section with server icon
+            components.push(
+                new SectionBuilder()
+                    .addTextDisplayComponents(
+                        new TextDisplayBuilder().setContent(`# 🎫 إنشاء تذكرة`)
+                    )
+                    .setAccessory(
+                        new ThumbnailBuilder().setURL(guild.iconURL({ dynamic: true, size: 256 }))
+                    )
+            );
+
+            // Separator
+            components.push(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorStyle.Gap));
+
+            // Welcome message
+            components.push(
+                new TextDisplayBuilder().setContent(
+                    `مرحباً بك في الدعم الفني الخاص بـ **Sentoria**.\n` +
+                    `يرجى اختيار القسم المناسب من الأسفل للحصول على أفضل خدمة ممكنة.`
+                )
+            );
+
+            // Separator
+            components.push(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorStyle.Gap));
+
+            // Categories
+            components.push(
+                new TextDisplayBuilder().setContent(
+                    `**🔧 الدعم الفني** — للمشاكل التقنية والأعطال\n` +
+                    `**👮 تقديم بلاغ** — للإبلاغ عن لاعب أو مشكلة\n` +
+                    `**📋 تقديم للإدارة** — التواصل المباشر مع الإدارة\n` +
+                    `**🤝 الشراكات** — طلبات الشراكات والتعاون\n` +
+                    `**❓ الدعم العام** — الأسئلة والاستفسارات العامة`
+                )
+            );
+
+            // Separator
+            components.push(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorStyle.Gap));
+
+            // Footer text
+            components.push(
+                new TextDisplayBuilder().setContent(
+                    `> Sentoria Tickets • Premium Support System`
+                )
+            );
+
+            // Buttons row 1
             const row1 = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('ticket_create_technical')
@@ -81,7 +103,7 @@ module.exports = {
                     .setEmoji('📋'),
             );
 
-            // Create buttons row 2
+            // Buttons row 2
             const row2 = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('ticket_create_partnership')
@@ -95,63 +117,36 @@ module.exports = {
                     .setEmoji('❓'),
             );
 
-            // Try to send with banner image
-            let sentMessage;
-            try {
-                const bannerPath = require('path').join(__dirname, '..', 'assets', 'tickets-banner.png');
-                if (require('fs').existsSync(bannerPath)) {
-                    sentMessage = await channel.send({
-                        embeds: [panelEmbed],
-                        components: [row1, row2],
-                        files: [{
-                            attachment: bannerPath,
-                            name: 'tickets-banner.png',
-                        }],
-                    });
-                } else {
-                    sentMessage = await channel.send({
-                        embeds: [panelEmbed],
-                        components: [row1, row2],
-                    });
-                }
-            } catch (e) {
-                sentMessage = await channel.send({
-                    embeds: [panelEmbed],
-                    components: [row1, row2],
-                });
+            // Container
+            const container = new ContainerBuilder()
+                .setAccentColor(config.colors.primary)
+                .addComponents(...components);
+
+            const payload = {
+                components: [container, row1, row2],
+            };
+
+            if (hasBanner) {
+                payload.files = [{
+                    attachment: bannerPath,
+                    name: 'tickets-banner.png',
+                }];
             }
 
-            // Save message ID
+            const sentMessage = await channel.send(payload);
+
             settings.ticketPanelMessageId = sentMessage.id;
             await settings.save();
 
-            // Reply to user
-            const successEmbed = new EmbedBuilder()
-                .setColor(config.colors.success)
-                .setTitle('✅ تم إعداد لوحة التذاكر')
-                .setDescription('تم إرسال لوحة التذاكر بنجاح في هذا القناة!')
-                .setFooter({
-                    text: config.botName,
-                    iconURL: guild.iconURL({ dynamic: true }),
-                })
-                .setTimestamp();
-
             await interaction.editReply({
-                embeds: [successEmbed],
+                content: '✅ تم إعداد لوحة التذاكر بنجاح!',
             });
 
         } catch (error) {
             console.error('Setup command error:', error);
-            console.error('Error stack:', error.stack);
-
-            const errorEmbed = new EmbedBuilder()
-                .setColor(config.colors.danger)
-                .setTitle('❌ خطأ')
-                .setDescription(`حدث خطأ أثناء إعداد لوحة التذاكر.\n\`\`\`${error.message}\`\`\``)
-                .setTimestamp();
 
             await interaction.editReply({
-                embeds: [errorEmbed],
+                content: `❌ حدث خطأ: ${error.message}`,
             });
         }
     },

@@ -39,15 +39,14 @@ module.exports = {
             }
 
             // Main title section with server icon
-            components.push(
-                new SectionBuilder()
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(`# 🎫 إنشاء تذكرة`)
-                    )
-                    .setAccessory(
-                        new ThumbnailBuilder().setURL(guild.iconURL({ dynamic: true, size: 256 }))
-                    )
+            const titleSection = new SectionBuilder()
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(`# 🎫 إنشاء تذكرة`)
+                );
+            titleSection.setAccessory(
+                new ThumbnailBuilder().setURL(guild.iconURL({ dynamic: true, size: 256 }))
             );
+            components.push(titleSection);
 
             // Separator
             components.push(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorStyle.Gap));

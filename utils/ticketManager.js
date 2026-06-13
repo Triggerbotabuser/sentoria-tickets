@@ -149,9 +149,6 @@ class TicketManager {
             ));
             components.push(this.separator());
 
-            components.push(this.text(`> ${config.botName} • ${formattedNumber}`));
-            components.push(this.separator());
-
             components.push(new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId(`ticket_close_${ticketChannel.id}`).setLabel('🔒 إغلاق').setStyle(ButtonStyle.Danger),
                 new ButtonBuilder().setCustomId(`ticket_claim_${ticketChannel.id}`).setLabel('✋ استلام').setStyle(ButtonStyle.Success),
@@ -196,8 +193,6 @@ class TicketManager {
                         `**وقت الإغلاق:** <t:${Math.floor(Date.now() / 1000)}:R>\n\n` +
                         `> سيتم حذف هذا القناة خلال 10 ثوانٍ.`
                     ),
-                    this.separator(),
-                    this.text(`> ${config.botName} • Transcript will be saved`),
                 ];
 
                 await channel.send({
@@ -222,8 +217,6 @@ class TicketManager {
                                 `**أغلقها:** ${closedByMember?.user?.tag || 'System'}\n` +
                                 `**الرسائل:** ${ticket.messageCount}`
                             ),
-                            this.separator(),
-                            this.text(`> ${config.botName}`),
                         ];
 
                         await logsChannel.send({
@@ -273,8 +266,6 @@ class TicketManager {
                         `**وقت الاستلام:** <t:${Math.floor(Date.now() / 1000)}:R>\n\n` +
                         `> الآن ${member} مسؤول عن هذه التذكرة.`
                     ),
-                    this.separator(),
-                    this.text(`> ${config.botName}`),
                 ];
 
                 await channel.send({
@@ -313,8 +304,6 @@ class TicketManager {
                 this.text('## ✅ تم إضافة عضو'),
                 this.separator(),
                 this.text(`**تم إضافة:** ${targetMember}\n**بواسطة:** ${addedBy}`),
-                this.separator(),
-                this.text(`> ${config.botName}`),
             ];
 
             await channel.send({
@@ -348,8 +337,6 @@ class TicketManager {
                 this.text('## ❌ تم إزالة عضو'),
                 this.separator(),
                 this.text(`**تم إزالة:** ${targetMember.user.tag}\n**بواسطة:** ${removedBy}`),
-                this.separator(),
-                this.text(`> ${config.botName}`),
             ];
 
             await channel.send({
@@ -380,8 +367,6 @@ class TicketManager {
                     `**الاسم الجديد:** ${newName}\n` +
                     `**بواسطة:** ${renamedBy}`
                 ),
-                this.separator(),
-                this.text(`> ${config.botName}`),
             ];
 
             await channel.send({
@@ -504,8 +489,6 @@ class TicketManager {
                             `**الفئة:** ${category?.name || ticket.category}\n` +
                             `**القناة:** <#${ticket.channelId}>`
                         ),
-                        this.separator(),
-                        this.text(`> ${config.botName}`),
                     ];
                     break;
 
@@ -519,8 +502,6 @@ class TicketManager {
                             `**السبب:** ${data.reason || 'لا يوجد سبب'}\n` +
                             `**المنشئ:** ${ticket.creatorTag}`
                         ),
-                        this.separator(),
-                        this.text(`> ${config.botName}`),
                     ];
                     break;
 
@@ -532,8 +513,6 @@ class TicketManager {
                             `**المستلم:** ${member?.user?.tag || 'Unknown'}\n` +
                             `**المنشئ:** ${ticket.creatorTag}`
                         ),
-                        this.separator(),
-                        this.text(`> ${config.botName}`),
                     ];
                     break;
 

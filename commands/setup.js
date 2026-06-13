@@ -2,7 +2,7 @@ const {
     SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
     ContainerBuilder, TextDisplayBuilder, SeparatorBuilder,
     MediaGalleryBuilder, SectionBuilder, ThumbnailBuilder,
-    ActionRowBuilder, ButtonBuilder, ButtonStyle
+    ActionRowBuilder, StringSelectMenuBuilder
 } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
@@ -46,31 +46,23 @@ module.exports = {
 
             components.push(V2.text(
                 'مرحباً بك في الدعم الفني الخاص بـ **Sentoria**.\n' +
-                'يرجى اختيار القسم المناسب من الأسفل للحصول على أفضل خدمة ممكنة.'
+                'يرجى اختيار القسم المناسب من القائمة أدناه للحصول على أفضل خدمة ممكنة.'
             ));
             components.push(V2.separator());
 
-            components.push(V2.text(
-                '**🔧 الدعم الفني** — للمشاكل التقنية والأعطال\n' +
-                '**👮 تقديم بلاغ** — للإبلاغ عن لاعب أو مشكلة\n' +
-                '**📋 تقديم للإدارة** — التواصل المباشر مع الإدارة\n' +
-                '**🤝 الشراكات** — طلبات الشراكات والتعاون\n' +
-                '**❓ الدعم العام** — الأسئلة والاستفسارات العامة'
-            ));
-            components.push(V2.separator());
+            const selectMenu = new StringSelectMenuBuilder()
+                .setCustomId('ticket_create_menu')
+                .setPlaceholder('اختر القسم...')
+                .addOptions(
+                    Object.values(config.categories).map(cat => ({
+                        label: cat.name,
+                        value: cat.id,
+                        emoji: cat.emoji,
+                        description: cat.description,
+                    }))
+                );
 
-            components.push(V2.text('> Sentoria Tickets v2.0 • Premium Support System'));
-            components.push(V2.separator());
-
-            components.push(new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('ticket_create_technical').setLabel('🔧 الدعم الفني').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId('ticket_create_player-report').setLabel('👮 تقديم بلاغ').setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setCustomId('ticket_create_management').setLabel('📋 تقديم للإدارة').setStyle(ButtonStyle.Success),
-            ));
-            components.push(new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('ticket_create_partnership').setLabel('🤝 الشراكات').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('ticket_create_general').setLabel('❓ الدعم العام').setStyle(ButtonStyle.Secondary),
-            ));
+            components.push(new ActionRowBuilder().addComponents(selectMenu));
 
             const payload = {
                 components: [V2.buildContainer(config.colors.primary, components)],

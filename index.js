@@ -87,11 +87,9 @@ client.on('interactionCreate', async (interaction) => {
             await command.execute(interaction, client);
         }
 
-        if (interaction.isButton()) {
-            const { customId } = interaction;
-
-            if (customId.startsWith('ticket_create_')) {
-                const category = customId.replace('ticket_create_', '');
+        if (interaction.isStringSelectMenu()) {
+            if (interaction.customId === 'ticket_create_menu') {
+                const category = interaction.values[0];
                 const { guild, member } = interaction;
 
                 const check = await TicketManager.canCreateTicket(guild.id, member.id);
@@ -112,6 +110,10 @@ client.on('interactionCreate', async (interaction) => {
                     V2.text(`## ✅ تم إنشاء التذكرة\n**رقم التذكرة:** ${result.ticketNumber}\n**القناة:** <#${result.channel.id}>`),
                 ]);
             }
+        }
+
+        if (interaction.isButton()) {
+            const { customId } = interaction;
 
             if (customId.startsWith('ticket_close_')) {
                 const { guild, member, channel } = interaction;

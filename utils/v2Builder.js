@@ -45,8 +45,9 @@ class V2Builder {
     }
 
     static buildContainer(color, components) {
-        const container = new ContainerBuilder()
-            .setAccentColor(color || config.colors.primary);
+        const container = new ContainerBuilder();
+        if (color) container.setAccentColor(color);
+
 
         for (const comp of components) {
             if (comp instanceof TextDisplayBuilder) {

@@ -65,7 +65,7 @@ module.exports = {
             components.push(new ActionRowBuilder().addComponents(selectMenu));
 
             const payload = {
-                components: [V2.buildContainer(config.colors.primary, components)],
+                components: [V2.buildContainer(null, components)],
                 flags: MessageFlags.IsComponentsV2,
             };
             if (hasBanner) {

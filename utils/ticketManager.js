@@ -1,8 +1,8 @@
 const {
-    PermissionFlagsBits, ChannelType,
+    PermissionFlagsBits, ChannelType, MessageFlags,
     ContainerBuilder, TextDisplayBuilder, SeparatorBuilder,
     MediaGalleryBuilder, SectionBuilder, ThumbnailBuilder,
-    ActionRowBuilder, ButtonBuilder, ButtonStyle, SeparatorStyle, MessageFlags
+    ActionRowBuilder, ButtonBuilder, ButtonStyle
 } = require('discord.js');
 const Ticket = require('../models/Ticket');
 const Settings = require('../models/Settings');
@@ -10,10 +10,23 @@ const config = require('../config');
 
 class TicketManager {
 
-    static createContainer(color, components) {
-        return new ContainerBuilder()
-            .setAccentColor(color || config.colors.primary)
-            .addComponents(...components);
+    static buildContainer(color, components) {
+        const container = new ContainerBuilder()
+            .setAccentColor(color || config.colors.primary);
+        for (const comp of components) {
+            if (comp instanceof TextDisplayBuilder) {
+                container.addTextDisplayComponents(comp);
+            } else if (comp instanceof SeparatorBuilder) {
+                container.addSeparatorComponents(comp);
+            } else if (comp instanceof MediaGalleryBuilder) {
+                container.addMediaGalleryComponents(comp);
+            } else if (comp instanceof SectionBuilder) {
+                container.addSectionComponents(comp);
+            } else if (comp instanceof ActionRowBuilder) {
+                container.addActionRowComponents(comp);
+            }
+        }
+        return container;
     }
 
     static text(content) {
@@ -21,13 +34,7 @@ class TicketManager {
     }
 
     static separator(gap = true) {
-        return new SeparatorBuilder()
-            .setDivider(true)
-            .setSpacing(gap ? SeparatorStyle.Gap : SeparatorStyle.Small);
-    }
-
-    static buttons(...buttons) {
-        return new ActionRowBuilder().addComponents(...buttons);
+        return new SeparatorBuilder().setDivider(true).setSpacing(gap ? 1 : 0);
     }
 
     static async getSettings(guildId) {
@@ -108,9 +115,7 @@ class TicketManager {
 
             if (settings.staffRoleId) {
                 await ticketChannel.permissionOverwrites.edit(settings.staffRoleId, {
-                    ViewChannel: true,
-                    SendMessages: true,
-                    ReadMessageHistory: true,
+                    ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
                 });
             }
 
@@ -131,7 +136,6 @@ class TicketManager {
                 .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ${categoryConfig.emoji} ${categoryConfig.name} — ${formattedNumber}`));
             if (guildIcon) titleSection.setThumbnailAccessory(new ThumbnailBuilder().setURL(guildIcon));
             components.push(titleSection);
-
             components.push(this.separator());
 
             components.push(this.text(
@@ -143,21 +147,19 @@ class TicketManager {
                 `يرجى شرح مشكلتك بالتفصيل وسيقوم فريق الدعم بمساعدتك في أقرب وقت ممكن.\n\n` +
                 `> ⚠️ يرجى عدم إرسال رسائل غير ضرورية لتسريع عملية المساعدة.`
             ));
-
             components.push(this.separator());
 
             components.push(this.text(`> ${config.botName} • ${formattedNumber}`));
-
             components.push(this.separator());
 
-            components.push(this.buttons(
+            components.push(new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId(`ticket_close_${ticketChannel.id}`).setLabel('🔒 إغلاق').setStyle(ButtonStyle.Danger),
                 new ButtonBuilder().setCustomId(`ticket_claim_${ticketChannel.id}`).setLabel('✋ استلام').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId(`ticket_transcript_${ticketChannel.id}`).setLabel('📄 نسخة').setStyle(ButtonStyle.Secondary),
             ));
 
             await ticketChannel.send({
-                components: [this.createContainer(categoryConfig.color, components)],
+                components: [this.buildContainer(categoryConfig.color, components)],
                 flags: MessageFlags.IsComponentsV2,
             });
 
@@ -185,20 +187,21 @@ class TicketManager {
             await ticket.save();
 
             if (channel) {
-                const components = [];
-                components.push(this.text('## 🔒 تم إغلاق التذكرة'));
-                components.push(this.separator());
-                components.push(this.text(
-                    `**تم الإغلاق بواسطة:** ${closedByMember || 'System'}\n` +
-                    `**سبب الإغلاق:** ${reason}\n` +
-                    `**وقت الإغلاق:** <t:${Math.floor(Date.now() / 1000)}:R>\n\n` +
-                    `> سيتم حذف هذا القناة خلال 10 ثوانٍ.`
-                ));
-                components.push(this.separator());
-                components.push(this.text(`> ${config.botName} • Transcript will be saved`));
+                const components = [
+                    this.text('## 🔒 تم إغلاق التذكرة'),
+                    this.separator(),
+                    this.text(
+                        `**تم الإغلاق بواسطة:** ${closedByMember || 'System'}\n` +
+                        `**سبب الإغلاق:** ${reason}\n` +
+                        `**وقت الإغلاق:** <t:${Math.floor(Date.now() / 1000)}:R>\n\n` +
+                        `> سيتم حذف هذا القناة خلال 10 ثوانٍ.`
+                    ),
+                    this.separator(),
+                    this.text(`> ${config.botName} • Transcript will be saved`),
+                ];
 
                 await channel.send({
-                    components: [this.createContainer(config.colors.danger, components)],
+                    components: [this.buildContainer(config.colors.danger, components)],
                     flags: MessageFlags.IsComponentsV2,
                 });
 
@@ -207,31 +210,30 @@ class TicketManager {
                 const settings = await this.getSettings(guild.id);
                 if (settings.transcriptLogsChannelId) {
                     const logsChannel = guild.channels.cache.get(settings.transcriptLogsChannelId);
-                    if (logsChannel) {
-                        const logComponents = [];
-                        logComponents.push(this.text(`## 📄 نسخة التذكرة — ${this.formatTicketNumber(ticket.ticketId)}`));
-                        logComponents.push(this.separator());
-                        logComponents.push(this.text(
-                            `**التذكرة:** ${this.formatTicketNumber(ticket.ticketId)}\n` +
-                            `**المنشئ:** ${ticket.creatorTag}\n` +
-                            `**الفئة:** ${config.categories[ticket.category]?.name || ticket.category}\n` +
-                            `**الحالة:** مغلقة\n` +
-                            `**أغلقها:** ${closedByMember?.user?.tag || 'System'}\n` +
-                            `**الرسائل:** ${ticket.messageCount}`
-                        ));
-                        logComponents.push(this.separator());
-                        logComponents.push(this.text(`> ${config.botName}`));
+                    if (logsChannel && transcript) {
+                        const logComponents = [
+                            this.text(`## 📄 نسخة التذكرة — ${this.formatTicketNumber(ticket.ticketId)}`),
+                            this.separator(),
+                            this.text(
+                                `**التذكرة:** ${this.formatTicketNumber(ticket.ticketId)}\n` +
+                                `**المنشئ:** ${ticket.creatorTag}\n` +
+                                `**الفئة:** ${config.categories[ticket.category]?.name || ticket.category}\n` +
+                                `**الحالة:** مغلقة\n` +
+                                `**أغلقها:** ${closedByMember?.user?.tag || 'System'}\n` +
+                                `**الرسائل:** ${ticket.messageCount}`
+                            ),
+                            this.separator(),
+                            this.text(`> ${config.botName}`),
+                        ];
 
-                        if (transcript) {
-                            await logsChannel.send({
-                                components: [this.createContainer(config.colors.primary, logComponents)],
-                                flags: MessageFlags.IsComponentsV2,
-                                files: [{
-                                    attachment: Buffer.from(transcript, 'utf-8'),
-                                    name: `transcript-${ticket.ticketId}.html`,
-                                }],
-                            });
-                        }
+                        await logsChannel.send({
+                            components: [this.buildContainer(config.colors.primary, logComponents)],
+                            flags: MessageFlags.IsComponentsV2,
+                            files: [{
+                                attachment: Buffer.from(transcript, 'utf-8'),
+                                name: `transcript-${ticket.ticketId}.html`,
+                            }],
+                        });
                     }
                 }
 
@@ -263,19 +265,20 @@ class TicketManager {
 
             const channel = guild.channels.cache.get(channelId);
             if (channel) {
-                const components = [];
-                components.push(this.text('## ✋ تم استلام التذكرة'));
-                components.push(this.separator());
-                components.push(this.text(
-                    `**تم الاستلام بواسطة:** ${member}\n` +
-                    `**وقت الاستلام:** <t:${Math.floor(Date.now() / 1000)}:R>\n\n` +
-                    `> الآن ${member} مسؤول عن هذه التذكرة.`
-                ));
-                components.push(this.separator());
-                components.push(this.text(`> ${config.botName}`));
+                const components = [
+                    this.text('## ✋ تم استلام التذكرة'),
+                    this.separator(),
+                    this.text(
+                        `**تم الاستلام بواسطة:** ${member}\n` +
+                        `**وقت الاستلام:** <t:${Math.floor(Date.now() / 1000)}:R>\n\n` +
+                        `> الآن ${member} مسؤول عن هذه التذكرة.`
+                    ),
+                    this.separator(),
+                    this.text(`> ${config.botName}`),
+                ];
 
                 await channel.send({
-                    components: [this.createContainer(config.colors.success, components)],
+                    components: [this.buildContainer(config.colors.success, components)],
                     flags: MessageFlags.IsComponentsV2,
                 });
             }
@@ -306,15 +309,16 @@ class TicketManager {
                 await ticket.save();
             }
 
-            const components = [];
-            components.push(this.text('## ✅ تم إضافة عضو'));
-            components.push(this.separator());
-            components.push(this.text(`**تم إضافة:** ${targetMember}\n**بواسطة:** ${addedBy}`));
-            components.push(this.separator());
-            components.push(this.text(`> ${config.botName}`));
+            const components = [
+                this.text('## ✅ تم إضافة عضو'),
+                this.separator(),
+                this.text(`**تم إضافة:** ${targetMember}\n**بواسطة:** ${addedBy}`),
+                this.separator(),
+                this.text(`> ${config.botName}`),
+            ];
 
             await channel.send({
-                components: [this.createContainer(config.colors.success, components)],
+                components: [this.buildContainer(config.colors.success, components)],
                 flags: MessageFlags.IsComponentsV2,
             });
 
@@ -340,15 +344,16 @@ class TicketManager {
             ticket.participants = ticket.participants.filter(p => p.userId !== targetMember.id);
             await ticket.save();
 
-            const components = [];
-            components.push(this.text('## ❌ تم إزالة عضو'));
-            components.push(this.separator());
-            components.push(this.text(`**تم إزالة:** ${targetMember.user.tag}\n**بواسطة:** ${removedBy}`));
-            components.push(this.separator());
-            components.push(this.text(`> ${config.botName}`));
+            const components = [
+                this.text('## ❌ تم إزالة عضو'),
+                this.separator(),
+                this.text(`**تم إزالة:** ${targetMember.user.tag}\n**بواسطة:** ${removedBy}`),
+                this.separator(),
+                this.text(`> ${config.botName}`),
+            ];
 
             await channel.send({
-                components: [this.createContainer(config.colors.danger, components)],
+                components: [this.buildContainer(config.colors.danger, components)],
                 flags: MessageFlags.IsComponentsV2,
             });
 
@@ -367,19 +372,20 @@ class TicketManager {
             const oldName = channel.name;
             await channel.setName(newName);
 
-            const components = [];
-            components.push(this.text('## 📝 تم تغيير اسم التذكرة'));
-            components.push(this.separator());
-            components.push(this.text(
-                `**الاسم القديم:** ${oldName}\n` +
-                `**الاسم الجديد:** ${newName}\n` +
-                `**بواسطة:** ${renamedBy}`
-            ));
-            components.push(this.separator());
-            components.push(this.text(`> ${config.botName}`));
+            const components = [
+                this.text('## 📝 تم تغيير اسم التذكرة'),
+                this.separator(),
+                this.text(
+                    `**الاسم القديم:** ${oldName}\n` +
+                    `**الاسم الجديد:** ${newName}\n` +
+                    `**بواسطة:** ${renamedBy}`
+                ),
+                this.separator(),
+                this.text(`> ${config.botName}`),
+            ];
 
             await channel.send({
-                components: [this.createContainer(config.colors.primary, components)],
+                components: [this.buildContainer(config.colors.primary, components)],
                 flags: MessageFlags.IsComponentsV2,
             });
 
@@ -414,7 +420,7 @@ class TicketManager {
             border-radius: 15px; padding: 30px; margin-bottom: 20px;
             text-align: center; box-shadow: 0 10px 40px rgba(255, 0, 0, 0.3);
         }
-        .header h1 { font-size: 28px; margin-bottom: 10px; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); }
+        .header h1 { font-size: 28px; margin-bottom: 10px; }
         .header .ticket-info { display: flex; justify-content: center; gap: 30px; margin-top: 15px; font-size: 14px; opacity: 0.9; }
         .message {
             background: rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 15px;
@@ -454,7 +460,7 @@ class TicketManager {
             html += `
         </div>
         <div class="footer">
-            <p>Sentoria Tickets v2.0 • Premium Support System</p>
+            <p>Sentoria Tickets v2.0 — Premium Support System</p>
             <p>Generated on ${new Date().toLocaleString('ar-SA')}</p>
         </div>
     </div>
@@ -490,44 +496,53 @@ class TicketManager {
             switch (action) {
                 case 'create':
                     color = config.colors.success;
-                    components.push(this.text(`## 📩 تذكرة جديدة — ${formattedNumber}`));
-                    components.push(this.separator());
-                    components.push(this.text(
-                        `**المنشئ:** ${member.user.tag} (${member.id})\n` +
-                        `**الفئة:** ${category?.name || ticket.category}\n` +
-                        `**القناة:** <#${ticket.channelId}>`
-                    ));
+                    components = [
+                        this.text(`## 📩 تذكرة جديدة — ${formattedNumber}`),
+                        this.separator(),
+                        this.text(
+                            `**المنشئ:** ${member.user.tag} (${member.id})\n` +
+                            `**الفئة:** ${category?.name || ticket.category}\n` +
+                            `**القناة:** <#${ticket.channelId}>`
+                        ),
+                        this.separator(),
+                        this.text(`> ${config.botName}`),
+                    ];
                     break;
 
                 case 'close':
                     color = config.colors.danger;
-                    components.push(this.text(`## 🔒 تم إغلاق تذكرة — ${formattedNumber}`));
-                    components.push(this.separator());
-                    components.push(this.text(
-                        `**المغلق:** ${member?.user?.tag || 'System'}\n` +
-                        `**السبب:** ${data.reason || 'لا يوجد سبب'}\n` +
-                        `**المنشئ:** ${ticket.creatorTag}`
-                    ));
+                    components = [
+                        this.text(`## 🔒 تم إغلاق تذكرة — ${formattedNumber}`),
+                        this.separator(),
+                        this.text(
+                            `**المغلق:** ${member?.user?.tag || 'System'}\n` +
+                            `**السبب:** ${data.reason || 'لا يوجد سبب'}\n` +
+                            `**المنشئ:** ${ticket.creatorTag}`
+                        ),
+                        this.separator(),
+                        this.text(`> ${config.botName}`),
+                    ];
                     break;
 
                 case 'claim':
-                    components.push(this.text(`## ✋ تم استلام تذكرة — ${formattedNumber}`));
-                    components.push(this.separator());
-                    components.push(this.text(
-                        `**المستلم:** ${member?.user?.tag || 'Unknown'}\n` +
-                        `**المنشئ:** ${ticket.creatorTag}`
-                    ));
+                    components = [
+                        this.text(`## ✋ تم استلام تذكرة — ${formattedNumber}`),
+                        this.separator(),
+                        this.text(
+                            `**المستلم:** ${member?.user?.tag || 'Unknown'}\n` +
+                            `**المنشئ:** ${ticket.creatorTag}`
+                        ),
+                        this.separator(),
+                        this.text(`> ${config.botName}`),
+                    ];
                     break;
 
                 default:
                     return;
             }
 
-            components.push(this.separator());
-            components.push(this.text(`> ${config.botName}`));
-
             await logsChannel.send({
-                components: [this.createContainer(color, components)],
+                components: [this.buildContainer(color, components)],
                 flags: MessageFlags.IsComponentsV2,
             });
         } catch (error) {

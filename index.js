@@ -1,9 +1,6 @@
 const {
     Client, GatewayIntentBits, Collection, Partials,
-    ButtonStyle, PermissionFlagsBits, ChannelType,
-    ContainerBuilder, TextDisplayBuilder, SeparatorBuilder,
-    MediaGalleryBuilder, SectionBuilder, ThumbnailBuilder,
-    ActionRowBuilder, ButtonBuilder, SeparatorStyle, MessageFlags
+    ButtonStyle, PermissionFlagsBits, ChannelType, MessageFlags
 } = require('discord.js');
 const mongoose = require('mongoose');
 const express = require('express');
@@ -65,6 +62,23 @@ client.once('ready', async (c) => {
     }
 });
 
+function replyV2(interaction, color, components) {
+    return interaction.reply({
+        components: [V2.buildContainer(color, components)],
+        flags: MessageFlags.IsComponentsV2,
+        ephemeral: true,
+    });
+}
+
+function editReplyV2(interaction, color, components, files) {
+    const payload = {
+        components: [V2.buildContainer(color, components)],
+        flags: MessageFlags.IsComponentsV2,
+    };
+    if (files) payload.files = files;
+    return interaction.editReply(payload);
+}
+
 client.on('interactionCreate', async (interaction) => {
     try {
         if (interaction.isChatInputCommand()) {
@@ -79,33 +93,24 @@ client.on('interactionCreate', async (interaction) => {
             if (customId.startsWith('ticket_create_')) {
                 const category = customId.replace('ticket_create_', '');
                 const { guild, member } = interaction;
-                const settings = await TicketManager.getSettings(guild.id);
 
                 const check = await TicketManager.canCreateTicket(guild.id, member.id);
                 if (!check.allowed) {
-                    const components = [
+                    return replyV2(interaction, config.colors.danger, [
                         V2.text(`## ❌ رفض\n${check.reason}`),
-                    ];
-                    return interaction.reply({
-                        components: [V2.createContainer(config.colors.danger, components)],
-                        flags: MessageFlags.IsComponentsV2,
-                        ephemeral: true,
-                    });
+                    ]);
                 }
 
                 await interaction.deferReply({ ephemeral: true });
 
+                const settings = await TicketManager.getSettings(guild.id);
                 const result = await TicketManager.createTicket(guild, member, category, settings);
-                if (!result.success) {
-                    return V2.errorReply(interaction, result.error);
-                }
+                if (!result.success) return V2.errorReply(interaction, result.error);
 
                 client.cooldowns.set(`${guild.id}-${member.id}`, Date.now() + config.tickets.cooldownTime);
-
-                const components = [
+                await editReplyV2(interaction, config.colors.success, [
                     V2.text(`## ✅ تم إنشاء التذكرة\n**رقم التذكرة:** ${result.ticketNumber}\n**القناة:** <#${result.channel.id}>`),
-                ];
-                await V2.replyV2(interaction, components);
+                ]);
             }
 
             if (customId.startsWith('ticket_close_')) {
@@ -113,31 +118,24 @@ client.on('interactionCreate', async (interaction) => {
                 const ticket = await Ticket.findOne({ channelId: channel.id, guildId: guild.id, status: 'open' });
 
                 if (!ticket) {
-                    const components = [V2.text('## ❌ خطأ\nهذه ليست تذكرة مفتوحة.')];
-                    return interaction.reply({
-                        components: [V2.createContainer(config.colors.danger, components)],
-                        flags: MessageFlags.IsComponentsV2,
-                        ephemeral: true,
-                    });
+                    return replyV2(interaction, config.colors.danger, [
+                        V2.text('## ❌ خطأ\nهذه ليست تذكرة مفتوحة.'),
+                    ]);
                 }
 
                 if (ticket.creatorId !== member.id && !member.permissions.has(PermissionFlagsBits.Administrator)) {
-                    const components = [V2.text('## ❌ رفض\nليس لديك صلاحية لإغلاق هذه التذكرة.')];
-                    return interaction.reply({
-                        components: [V2.createContainer(config.colors.danger, components)],
-                        flags: MessageFlags.IsComponentsV2,
-                        ephemeral: true,
-                    });
+                    return replyV2(interaction, config.colors.danger, [
+                        V2.text('## ❌ رفض\nليس لديك صلاحية لإغلاق هذه التذكرة.'),
+                    ]);
                 }
 
                 await interaction.deferReply();
                 const result = await TicketManager.closeTicket(guild, channel.id, member.id);
                 if (!result.success) return V2.errorReply(interaction, result.error);
 
-                const components = [
+                await editReplyV2(interaction, config.colors.success, [
                     V2.text('## 🔒 تم إغلاق التذكرة\nسيتم حذف القناة خلال 10 ثوانٍ.'),
-                ];
-                await V2.replyV2(interaction, components);
+                ]);
             }
 
             if (customId.startsWith('ticket_claim_')) {
@@ -145,29 +143,24 @@ client.on('interactionCreate', async (interaction) => {
                 const ticket = await Ticket.findOne({ channelId: channel.id, guildId: guild.id, status: 'open' });
 
                 if (!ticket) {
-                    const components = [V2.text('## ❌ خطأ\nهذه ليست تذكرة.')];
-                    return interaction.reply({
-                        components: [V2.createContainer(config.colors.danger, components)],
-                        flags: MessageFlags.IsComponentsV2,
-                        ephemeral: true,
-                    });
+                    return replyV2(interaction, config.colors.danger, [
+                        V2.text('## ❌ خطأ\nهذه ليست تذكرة.'),
+                    ]);
                 }
 
                 if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
-                    const components = [V2.text('## ❌ رفض\nليس لديك صلاحية.')];
-                    return interaction.reply({
-                        components: [V2.createContainer(config.colors.danger, components)],
-                        flags: MessageFlags.IsComponentsV2,
-                        ephemeral: true,
-                    });
+                    return replyV2(interaction, config.colors.danger, [
+                        V2.text('## ❌ رفض\nليس لديك صلاحية.'),
+                    ]);
                 }
 
                 await interaction.deferReply();
                 const result = await TicketManager.claimTicket(guild, channel.id, member.id);
                 if (!result.success) return V2.errorReply(interaction, result.error);
 
-                const components = [V2.text('## ✅ تم استلام التذكرة\nالآن أنت مسؤول عن هذه التذكرة.')];
-                await V2.replyV2(interaction, components);
+                await editReplyV2(interaction, config.colors.success, [
+                    V2.text('## ✅ تم استلام التذكرة\nالآن أنت مسؤول عن هذه التذكرة.'),
+                ]);
             }
 
             if (customId.startsWith('ticket_transcript_')) {
@@ -175,12 +168,9 @@ client.on('interactionCreate', async (interaction) => {
                 const ticket = await Ticket.findOne({ channelId: channel.id, guildId: guild.id });
 
                 if (!ticket) {
-                    const components = [V2.text('## ❌ خطأ\nهذه ليست تذكرة.')];
-                    return interaction.reply({
-                        components: [V2.createContainer(config.colors.danger, components)],
-                        flags: MessageFlags.IsComponentsV2,
-                        ephemeral: true,
-                    });
+                    return replyV2(interaction, config.colors.danger, [
+                        V2.text('## ❌ خطأ\nهذه ليست تذكرة.'),
+                    ]);
                 }
 
                 await interaction.deferReply({ ephemeral: true });
@@ -190,15 +180,12 @@ client.on('interactionCreate', async (interaction) => {
                 ticket.transcript = transcript;
                 await ticket.save();
 
-                const components = [V2.text('## ✅ تم إنشاء النسخة\nملف النسخة جاهز.')];
-                await interaction.editReply({
-                    components: [V2.createContainer(config.colors.success, components)],
-                    flags: MessageFlags.IsComponentsV2,
-                    files: [{
-                        attachment: Buffer.from(transcript, 'utf-8'),
-                        name: `transcript-${TicketManager.formatTicketNumber(ticket.ticketId)}.html`,
-                    }],
-                });
+                await editReplyV2(interaction, config.colors.success, [
+                    V2.text('## ✅ تم إنشاء النسخة\nملف النسخة جاهز.'),
+                ], [{
+                    attachment: Buffer.from(transcript, 'utf-8'),
+                    name: `transcript-${TicketManager.formatTicketNumber(ticket.ticketId)}.html`,
+                }]);
             }
         }
     } catch (error) {

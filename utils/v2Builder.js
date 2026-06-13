@@ -1,19 +1,12 @@
 const {
     ContainerBuilder, TextDisplayBuilder, SeparatorBuilder,
     MediaGalleryBuilder, SectionBuilder, ThumbnailBuilder,
-    ActionRowBuilder, ButtonBuilder, ButtonStyle, SeparatorStyle,
-    MessageFlags
+    ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags
 } = require('discord.js');
 
 const config = require('../config');
 
 class V2Builder {
-
-    static createContainer(color, components) {
-        return new ContainerBuilder()
-            .setAccentColor(color || config.colors.primary)
-            .addComponents(...components);
-    }
 
     static text(content) {
         return new TextDisplayBuilder().setContent(content);
@@ -22,7 +15,7 @@ class V2Builder {
     static separator(gap = true) {
         return new SeparatorBuilder()
             .setDivider(true)
-            .setSpacing(gap ? SeparatorStyle.Gap : SeparatorStyle.Small);
+            .setSpacing(gap ? 1 : 0);
     }
 
     static media(url) {
@@ -51,18 +44,39 @@ class V2Builder {
         return btn;
     }
 
-    static sendV2(channel, components, files) {
+    static buildContainer(color, components) {
+        const container = new ContainerBuilder()
+            .setAccentColor(color || config.colors.primary);
+
+        for (const comp of components) {
+            if (comp instanceof TextDisplayBuilder) {
+                container.addTextDisplayComponents(comp);
+            } else if (comp instanceof SeparatorBuilder) {
+                container.addSeparatorComponents(comp);
+            } else if (comp instanceof MediaGalleryBuilder) {
+                container.addMediaGalleryComponents(comp);
+            } else if (comp instanceof SectionBuilder) {
+                container.addSectionComponents(comp);
+            } else if (comp instanceof ActionRowBuilder) {
+                container.addActionRowComponents(comp);
+            }
+        }
+
+        return container;
+    }
+
+    static sendV2(channel, color, components, files) {
         const payload = {
-            components: [this.createContainer(config.colors.primary, components)],
+            components: [this.buildContainer(color, components)],
             flags: MessageFlags.IsComponentsV2,
         };
         if (files) payload.files = files;
         return channel.send(payload);
     }
 
-    static replyV2(interaction, components, files) {
+    static replyV2(interaction, color, components, files) {
         const payload = {
-            components: [this.createContainer(config.colors.primary, components)],
+            components: [this.buildContainer(color, components)],
             flags: MessageFlags.IsComponentsV2,
         };
         if (files) payload.files = files;
@@ -70,21 +84,15 @@ class V2Builder {
     }
 
     static errorReply(interaction, message) {
-        const components = [
-            this.text(`## ❌ خطأ\n${message}`),
-        ];
         return interaction.editReply({
-            components: [this.createContainer(config.colors.danger, components)],
+            components: [this.buildContainer(config.colors.danger, [this.text(`## ❌ خطأ\n${message}`)])],
             flags: MessageFlags.IsComponentsV2,
         });
     }
 
     static successReply(interaction, message) {
-        const components = [
-            this.text(`## ✅ تم بنجاح\n${message}`),
-        ];
         return interaction.editReply({
-            components: [this.createContainer(config.colors.success, components)],
+            components: [this.buildContainer(config.colors.success, [this.text(`## ✅ تم بنجاح\n${message}`)])],
             flags: MessageFlags.IsComponentsV2,
         });
     }

@@ -1,9 +1,9 @@
 const {
-    SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
-    ContainerBuilder, TextDisplayBuilder
+    SlashCommandBuilder, PermissionFlagsBits, MessageFlags
 } = require('discord.js');
 const config = require('../config');
 const TicketManager = require('../utils/ticketManager');
+const V2 = require('../utils/v2Builder');
 const Ticket = require('../models/Ticket');
 
 module.exports = {
@@ -15,33 +15,26 @@ module.exports = {
     async execute(interaction) {
         try {
             const { guild, channel } = interaction;
-
             const ticket = await Ticket.findOne({ channelId: channel.id, guildId: guild.id });
+
             if (!ticket) {
-                const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nهذا ليس قناة تذكرة.')];
                 return interaction.reply({
-                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
-                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+                    components: [V2.buildContainer(config.colors.danger, [V2.text('## ❌ خطأ\nهذا ليس قناة تذكرة.')])],
+                    flags: MessageFlags.IsComponentsV2,
+                    ephemeral: true,
                 });
             }
 
             await interaction.deferReply({ ephemeral: true });
             const transcript = await TicketManager.generateTranscript(channel, ticket);
 
-            if (!transcript) {
-                const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nحدث خطأ أثناء إنشاء النسخة.')];
-                return interaction.editReply({
-                    components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
-                    flags: MessageFlags.IsComponentsV2,
-                });
-            }
+            if (!transcript) return V2.errorReply(interaction, 'حدث خطأ أثناء إنشاء النسخة.');
 
             ticket.transcript = transcript;
             await ticket.save();
 
-            const components = [new TextDisplayBuilder().setContent('## ✅ تم إنشاء النسخة\nملف النسخة جاهز.')];
             await interaction.editReply({
-                components: [new ContainerBuilder().setAccentColor(config.colors.success).addComponents(...components)],
+                components: [V2.buildContainer(config.colors.success, [V2.text('## ✅ تم إنشاء النسخة\nملف النسخة جاهز.')])],
                 flags: MessageFlags.IsComponentsV2,
                 files: [{
                     attachment: Buffer.from(transcript, 'utf-8'),
@@ -51,11 +44,7 @@ module.exports = {
 
         } catch (error) {
             console.error('Transcript error:', error);
-            const components = [new TextDisplayBuilder().setContent('## ❌ خطأ\nحدث خطأ أثناء إنشاء النسخة.')];
-            await interaction.editReply({
-                components: [new ContainerBuilder().setAccentColor(config.colors.danger).addComponents(...components)],
-                flags: MessageFlags.IsComponentsV2,
-            });
+            V2.errorReply(interaction, 'حدث خطأ أثناء إنشاء النسخة.');
         }
     },
 };

@@ -19,7 +19,9 @@ module.exports = {
     async execute(interaction) {
         try {
             const { guild, channel } = interaction;
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ ephemeral: true }).catch(() => {
+                throw new Error('INTERACTION_EXPIRED');
+            });
 
             const settings = await TicketManager.getSettings(guild.id);
             settings.ticketPanelChannelId = channel.id;
@@ -83,10 +85,17 @@ module.exports = {
 
         } catch (error) {
             console.error('Setup error:', error);
-            await interaction.editReply({
-                components: [V2.buildContainer(config.colors.danger, [V2.text(`## ❌ خطأ\n${error.message}`)])],
-                flags: MessageFlags.IsComponentsV2,
-            });
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({
+                    components: [V2.buildContainer(config.colors.danger, [V2.text(`## ❌ خطأ\n${error.message}`)])],
+                    flags: MessageFlags.IsComponentsV2,
+                }).catch(() => {});
+            } else {
+                await interaction.reply({
+                    content: `❌ حدث خطأ: ${error.message}`,
+                    ephemeral: true,
+                }).catch(() => {});
+            }
         }
     },
 };
